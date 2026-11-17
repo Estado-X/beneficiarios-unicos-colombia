@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Beneficiarios sin duplicados · Estado X</title>
+<meta name="description" content="Junta tus listas de inscripción, asistencia y entregas, encuentra a la misma persona aunque esté escrita distinto y decide tú los casos dudosos. Los datos no salen de tu computador.">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f2ebdc">
+<link rel="canonical" href="https://estado-x.github.io/beneficiarios-unicos-colombia/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_CO">
+<meta property="og:site_name" content="Beneficiarios sin duplicados · Consultorio X de Estado X">
+<meta property="og:url" content="https://estado-x.github.io/beneficiarios-unicos-colombia/">
+<meta property="og:title" content="Beneficiarios sin duplicados">
+<meta property="og:description" content="Junta tus listas, encuentra a la misma persona aunque esté escrita distinto y decide tú los casos dudosos. Los datos no salen de tu computador.">
+<meta property="og:image" content="https://estado-x.github.io/beneficiarios-unicos-colombia/docs/compartir.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Beneficiarios sin duplicados. Herramienta abierta · Consultorio X de Estado X">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Beneficiarios sin duplicados">
+<meta name="twitter:description" content="Junta tus listas, encuentra a la misma persona aunque esté escrita distinto y decide tú los casos dudosos.">
+<meta name="twitter:image" content="https://estado-x.github.io/beneficiarios-unicos-colombia/docs/compartir.png">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/estilos.css">
+</head>
+<body>
+<a class="saltar" href="#cargar">Ir a cargar las listas</a>
+
+<header class="cab">
+  <div class="contenedor cab__in">
+    <div class="cab__texto">
+      <p class="kicker">Herramienta abierta · Consultorio X de Estado X</p>
+      <h1>Beneficiarios sin <em>duplicados</em></h1>
+      <p class="bajada">El financiador pide personas únicas y tú tienes tres listas con el mismo nombre escrito de tres formas. Júntalas aquí: la página encuentra a la misma persona aunque esté escrita distinto, y los casos dudosos los decides tú.</p>
+      <div class="cab__accion">
+        <a class="boton" href="#cargar">Carga tus listas</a>
+        <button class="enlace-fuerte" type="button" data-ejemplo>Probar con el ejemplo</button>
+      </div>
+    </div>
+    <div class="pulso">
+      <dl class="pulso__cifras">
+        <div><dt>Datos que salen de tu computador</dt><dd>0</dd></div>
+      </dl>
+      <p class="pulso__rev"><span class="punto punto--ok" aria-hidden="true"></span><span>Todo pasa en este navegador. Al cerrar la página, no queda nada guardado.</span></p>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="contenedor cuerpo">
+
+    <noscript><p class="aviso aviso--error">Esta página necesita JavaScript: es lo que lee y compara tus listas sin enviarlas a ninguna parte.</p></noscript>
+
+    <section class="seccion" id="cargar" aria-labelledby="t-cargar">
+      <div class="seccion__cab">
+        <h2 id="t-cargar"><span class="num" aria-hidden="true">1</span> Carga tus listas</h2>
+        <p class="nota">Excel (.xlsx) o CSV. Una o varias.</p>
+      </div>
+
+      <div class="soltar" id="soltar">
+        <p class="soltar__titulo">Arrastra aquí tus listas</p>
+        <p class="soltar__texto">Inscripción, asistencia, entregas… La primera fila de cada una debe traer los nombres de las columnas.</p>
+        <div class="soltar__accion">
+          <input class="sr" type="file" id="archivos" multiple accept=".xlsx,.csv,.txt,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          <label class="boton" for="archivos">Elegir archivos</label>
+          <button class="boton boton--linea" type="button" data-ejemplo>Probar con el ejemplo</button>
+        </div>
+        <p class="nota">El ejemplo trae tres listas con datos ficticios: ninguna de esas personas existe.</p>
+      </div>
+
+      <div id="errores" aria-live="polite"></div>
+      <p class="ficticio" id="aviso-ficticio" hidden>Datos ficticios · estas personas no existen</p>
+      <div id="listas" class="listas"></div>
+
+      <div class="paso-accion" id="paso-buscar" hidden>
+        <button class="boton" type="button" id="buscar">Buscar personas repetidas</button>
+        <button class="enlace-fuerte" type="button" id="reiniciar">Empezar de nuevo</button>
+        <p class="nota" id="estado-buscar" aria-live="polite"></p>
+      </div>
+      <div class="avance" id="avance" hidden>
+        <label for="barra" id="avance-texto">Comparando…</label>
+        <progress id="barra" max="100" value="0"></progress>
+      </div>
+    </section>
+
+    <section class="seccion" id="revisar" aria-labelledby="t-revisar" hidden>
+      <div class="seccion__cab">
+        <h2 id="t-revisar"><span class="num" aria-hidden="true">2</span> Revisa las parejas</h2>
+        <p class="nota">Una por una. La decisión es tuya.</p>
+      </div>
+
+      <ul class="niveles" id="niveles">
+        <li class="nivel"><span class="nivel__n" id="n-seguros">0</span><span class="nivel__t"><strong>Seguras</strong> Mismo tipo y número de documento. Se unieron solas.</span></li>
+        <li class="nivel"><span class="nivel__n" id="n-probables">0</span><span class="nivel__t"><strong>Probables</strong> Nombre parecido y coincide otro dato. Las revisas tú.</span></li>
+        <li class="nivel"><span class="nivel__n" id="n-dudosas">0</span><span class="nivel__t"><strong>Dudosas</strong> Nombre parecido sin otro dato, o mismo documento con otro nombre. Las revisas tú.</span></li>
+      </ul>
+      <div id="avisos-analisis"></div>
+
+      <div class="revision" id="revision">
+        <div class="revision__cab">
+          <p class="revision__cuenta" id="cuenta"></p>
+          <progress id="progreso" max="1" value="0" aria-label="Parejas revisadas"></progress>
+        </div>
+        <div class="pareja" id="pareja" tabindex="-1" role="group" aria-labelledby="cuenta"></div>
+        <div class="decidir" id="decidir">
+          <button class="boton" type="button" id="b-misma" aria-keyshortcuts="M">Es la misma persona <kbd>M</kbd></button>
+          <button class="boton boton--linea" type="button" id="b-distintas" aria-keyshortcuts="D">Son personas distintas <kbd>D</kbd></button>
+          <button class="enlace-fuerte" type="button" id="b-saltar" aria-keyshortcuts="S">Decidir después <kbd>S</kbd></button>
+          <button class="enlace-fuerte" type="button" id="b-deshacer" aria-keyshortcuts="Z" disabled>Deshacer <kbd>Z</kbd></button>
+        </div>
+        <p class="nota" id="ayuda-teclado">Con el teclado: <kbd>M</kbd> misma persona, <kbd>D</kbd> distintas, <kbd>S</kbd> decidir después, <kbd>Z</kbd> deshacer. Las teclas funcionan mientras estés en esta sección.</p>
+        <p class="sr" id="voz" aria-live="polite"></p>
+      </div>
+
+      <details class="seguras" id="seguras">
+        <summary>Ver las parejas seguras</summary>
+        <div id="lista-seguras"></div>
+      </details>
+    </section>
+
+    <section class="seccion" id="resultado" aria-labelledby="t-resultado" hidden>
+      <div class="seccion__cab">
+        <h2 id="t-resultado"><span class="num" aria-hidden="true">3</span> Resultado</h2>
+        <p class="nota">Se actualiza con cada decisión.</p>
+      </div>
+      <dl class="cifras">
+        <div><dt>Filas en tus listas</dt><dd id="r-filas">0</dd></div>
+        <div class="cifras__clave"><dt>Personas únicas</dt><dd id="r-unicas">0</dd></div>
+        <div><dt>Decisiones que tomaste</dt><dd id="r-decisiones">0</dd></div>
+      </dl>
+      <p class="aviso" id="r-pendientes" hidden></p>
+      <div class="paso-accion">
+        <button class="boton" type="button" id="descargar">Descargar el Excel</button>
+        <p class="nota">Trae cuatro hojas: personas únicas (una fila por persona, con su ID único y de qué listas viene), todas las filas originales con su ID, las decisiones tomadas y un resumen.</p>
+      </div>
+    </section>
+
+    <div class="dos">
+      <section class="seccion" id="criterio" aria-labelledby="t-criterio">
+        <div class="seccion__cab"><h2 id="t-criterio">Dónde entra tu criterio</h2></div>
+        <div class="criterio">
+          <p class="limites__uno">Las parejas dudosas las decides tú, una por una.</p>
+          <p>La página une sola lo que tiene el mismo tipo y número de documento. Todo lo demás te lo muestra lado a lado, con la razón por la que lo trae, y espera tu respuesta. Tú conoces el territorio, a las familias y cómo se llenaron esas planillas.</p>
+          <p>Lo que no decidas queda como personas distintas y marcado «Sin decidir» en el Excel, para que se vea qué faltó revisar.</p>
+        </div>
+      </section>
+
+      <section class="seccion" id="privacidad" aria-labelledby="t-privacidad">
+        <div class="seccion__cab"><h2 id="t-privacidad">Tus datos se quedan contigo</h2></div>
+        <ul class="puntos">
+          <li>Las listas se leen y se comparan en este navegador. No se envían a ningún servidor.</li>
+          <li>No se guardan: al cerrar o recargar la página, se borran.</li>
+          <li>La página no tiene rastreadores, cuentas ni formularios.</li>
+          <li>La Ley 1581 de 2012 protege los datos personales. Quien maneja listas de beneficiarios es responsable de su tratamiento: cuida también el Excel que descargas.</li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="seccion limites" aria-labelledby="t-no">
+      <div class="seccion__cab"><h2 id="t-no">Lo que no hace</h2></div>
+      <div class="limites__texto">
+        <p class="limites__uno">No consulta la Registraduría ni ninguna base oficial, y no confirma identidades.</p>
+        <p>No decide por ti en los casos dudosos y no reemplaza la verificación en campo. Compara lo que está escrito en tus listas: si un documento quedó mal digitado en todas, aquí no se nota.</p>
+      </div>
+    </section>
+
+  </div>
+
+  <section class="hablamos oscuro" aria-labelledby="t-hablamos">
+    <div class="contenedor hablamos__in">
+      <p class="kicker">Consultorio X de Estado X</p>
+      <h2 id="t-hablamos">¿Hablamos de tu caso?</h2>
+      <p>Esta herramienta es una muestra. En Consultorio X montamos con tu equipo el registro completo de beneficiarios: una sola base desde la inscripción, reglas para que no se dupliquen y el informe al financiador con personas únicas.</p>
+      <a class="boton boton--claro" href="https://www.linkedin.com/in/juanperezcuervo/" target="_blank" rel="noopener">Escríbeme en LinkedIn</a>
+      <p class="firma">Juan Camilo Pérez Cuervo · Head de Alianzas y Proyectos Estratégicos de Estado X</p>
+    </div>
+  </section>
+</main>
+
+<footer class="pie oscuro">
+  <div class="contenedor pie__in">
+    <p>Hecho por Estado X · licencia MIT · Inspirado en <a href="https://github.com/moj-analytical-services/splink" target="_blank" rel="noopener">Splink</a>, del Ministerio de Justicia del Reino Unido (licencia MIT); no reutiliza su código.</p>
+    <p>Las listas son de quien las carga. Los datos del ejemplo son ficticios.</p>
+    <p><a href="https://estadox.com" target="_blank" rel="noopener">estadox.com</a> · Esta página no tiene rastreadores.</p>
+  </div>
+</footer>
+
+<script src="assets/zip.js" defer></script>
+<script src="assets/excel.js" defer></script>
+<script src="assets/nombres.js" defer></script>
+<script src="assets/emparejar.js" defer></script>
+<script src="assets/leer.js" defer></script>
+<script src="assets/app.js" defer></script>
+</body>
+</html>
