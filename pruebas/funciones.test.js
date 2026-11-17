@@ -133,6 +133,22 @@ prueba('seguro: mismo tipo y número de documento', () => {
   assert.strictEqual(nivel(A, { nombre: 'PEREZ CUERVO JUAN CAMILO', tipo: 'Cédula de ciudadanía', doc: '512345678' }), 'seguro');
   assert.strictEqual(nivel(A, { nombre: 'Juan C. Pérez', doc: '512345678' }), 'seguro');
 });
+prueba('mismo documento, pero otro nombre con los mismos apellidos o otra fecha: no se une solo', () => {
+  const diana = { nombre: 'MORENO RÍOS DIANA', tipo: 'CC', doc: '545678901', fecha: '30/06/1995' };
+  const andres = { nombre: 'Andrés Felipe Moreno Ríos', tipo: 'CC', doc: '545678901', fecha: '02/02/2001' };
+  const c = E.comparar(fila(diana), fila(andres));
+  assert.strictEqual(c.nivel, 'probable');
+  assert.strictEqual(c.motivo, 'Mismo documento, pero el nombre o la fecha no coinciden.');
+  // Solo el nombre choca (sin fechas) o solo la fecha choca: tampoco es seguro.
+  assert.strictEqual(nivel({ nombre: 'Moreno Ríos Diana', doc: '545678901' }, { nombre: 'Andrés Moreno Ríos', doc: '545678901' }), 'probable');
+  assert.strictEqual(nivel(A, { nombre: 'Juan Camilo Pérez Cuervo', tipo: 'CC', doc: '512345678', fecha: '08/04/1985' }), 'probable');
+  // Falta una parte del nombre en un solo lado y nada choca: sigue siendo seguro.
+  assert.strictEqual(nivel(A, { nombre: 'Juan Pérez', tipo: 'CC', doc: '512345678', fecha: '07/03/1990' }), 'seguro');
+});
+prueba('el motivo dice si una lista no trae el tipo de documento', () => {
+  assert.strictEqual(E.comparar(fila(A), fila({ nombre: 'Juan Camilo Pérez Cuervo', tipo: 'CC', doc: '512345678' })).motivo, 'Mismo tipo y número de documento.');
+  assert.strictEqual(E.comparar(fila(A), fila({ nombre: 'Juan Camilo Pérez Cuervo', doc: '512345678' })).motivo, 'Mismo número de documento (una lista no trae el tipo).');
+});
 prueba('dudoso: mismo documento con nombres muy distintos', () => {
   assert.strictEqual(nivel(A, { nombre: 'Luz Dary Mosquera Rentería', tipo: 'CC', doc: '512345678' }), 'dudoso');
 });

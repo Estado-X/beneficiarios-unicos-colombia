@@ -1,6 +1,7 @@
 /* Viene de Estado-X/facturas-colombia (assets/zip.js, commit 413584d), licencia MIT de Estado X.
-   Lee los .xlsx que carga la persona y arma el .xlsx que descarga. Un cambio frente al original:
-   crearComprimido(), que comprime cada parte con el propio navegador para que el Excel pese menos. */
+   Lee los .xlsx que carga la persona y arma el .xlsx que descarga. Dos cambios frente al original:
+   crearComprimido(), que comprime cada parte con el propio navegador para que el Excel pese menos, y
+   un tope real al descomprimir: se cuenta lo que va saliendo, sin confiar en el tamaño que declara el .zip. */
 /* Lector y escritor de .zip mínimo, sin librerías.
    - Leer: archivos guardados (método 0) o comprimidos con deflate (método 8), que
      descomprime el propio navegador con DecompressionStream('deflate-raw').
@@ -78,7 +79,10 @@
         if (u32(bytes, local) !== 0x04034B50) return Promise.reject(new Error('El .zip está dañado.'));
         var datos = local + 30 + u16(bytes, local + 26) + u16(bytes, local + 28);
         var crudo = bytes.subarray(datos, datos + comprimido);
-        if (metodo === 0) return Promise.resolve(crudo.slice());
+        if (metodo === 0) {
+          if (crudo.length > LIMITE_ENTRADA) return Promise.reject(new Error('El archivo «' + nom + '» del .zip es demasiado grande.'));
+          return Promise.resolve(crudo.slice());
+        }
         if (metodo === 8) return inflar(crudo);
         return Promise.reject(new Error('El archivo «' + nom + '» usa una compresión que no se puede abrir aquí (método ' + metodo + ').'));
       }
@@ -87,8 +91,29 @@
 
   function inflar(crudo) {
     if (typeof DecompressionStream === 'undefined') return Promise.reject(new Error('Tu navegador no puede abrir .zip. Actualízalo o descomprime el .zip y arrastra los .xml.'));
-    var flujo = new Blob([crudo]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-    return new Response(flujo).arrayBuffer().then(function (ab) { return new Uint8Array(ab); });
+    var lector = new Blob([crudo]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+    var trozos = [], total = 0, pasado = false;
+    function paso() {
+      return lector.read().then(function (r) {
+        if (r.done) {
+          var out = new Uint8Array(total), o = 0;
+          trozos.forEach(function (t) { out.set(t, o); o += t.length; });
+          return out;
+        }
+        total += r.value.length;
+        if (total > LIMITE_ENTRADA) {
+          pasado = true;
+          lector.cancel().catch(function () {});
+          throw new Error('El archivo es demasiado grande por dentro: al descomprimirlo pasa de ' + Math.round(LIMITE_ENTRADA / 1048576) + ' MB.');
+        }
+        trozos.push(r.value);
+        return paso();
+      });
+    }
+    return paso().catch(function (e) {
+      if (pasado) throw e;
+      throw new Error('El .zip está dañado: no se pudo descomprimir.');
+    });
   }
 
   /* archivos: [{ nombre, datos: Uint8Array | string }] → Uint8Array del .zip (sin comprimir). */

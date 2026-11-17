@@ -6,6 +6,8 @@
   'use strict';
 
   var MAX_FILAS = 200000;
+  var MAX_COLUMNAS = 100;
+  var MAX_CELDAS = 5000000;
 
   /* ---------- CSV ---------- */
   function decodificar(bytes) {
@@ -125,7 +127,8 @@
         if (c.localName === 'c') {
           var ref = c.getAttribute('r');
           var col = ref ? columnaDe(ref) : sig;
-          if (col >= 0 && col < 500) {
+          if (col >= MAX_COLUMNAS) filas.recortada = true;
+          if (col >= 0 && col < MAX_COLUMNAS) {
             var t = c.getAttribute('t'), valor = '';
             var hijo = c.firstElementChild, v = null, is = null;
             while (hijo) { if (hijo.localName === 'v') v = hijo; else if (hijo.localName === 'is') is = hijo; hijo = hijo.nextElementSibling; }
@@ -140,8 +143,7 @@
               else if (fechas[parseInt(c.getAttribute('s'), 10) || 0]) valor = fechaDeSerial(Number(valor)) || valor;
               else valor = numero(valor);
             }
-            while (fila.length < col) fila.push('');
-            fila[col] = valor;
+            fila[col] = valor; // los huecos quedan vacíos; tabla() los trata como texto vacío
           }
           sig = col + 1;
         }
@@ -235,7 +237,7 @@
   /* Tabla cruda → { encabezados, filas: [{ n: número de fila en el archivo, v: [texto, ...] }] }.
      El encabezado es la primera fila con al menos dos celdas con texto (así se saltan los títulos sueltos). */
   function tabla(crudas) {
-    var limpiar = function (v) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); };
+    var limpiar = function (v) { return v == null || v === '' ? '' : String(v).replace(/\s+/g, ' ').trim(); };
     var iEnc = -1, primera = -1;
     for (var i = 0; i < crudas.length && i < 50; i++) {
       var llenas = 0;
@@ -244,10 +246,18 @@
       if (llenas >= 2) { iEnc = i; break; }
     }
     if (iEnc < 0) iEnc = primera;
-    if (iEnc < 0) return { encabezados: [], filas: [] };
+    if (iEnc < 0) return { encabezados: [], filas: [], aviso: '' };
     var ancho = 0, filas = [];
     for (i = iEnc; i < crudas.length; i++) {
       for (j = crudas[i].length - 1; j >= ancho; j--) if (limpiar(crudas[i][j])) { ancho = j + 1; break; }
+    }
+    var aviso = '';
+    if (ancho > MAX_COLUMNAS || crudas.recortada) {
+      ancho = Math.min(ancho, MAX_COLUMNAS);
+      aviso = 'Solo se leyeron las primeras ' + MAX_COLUMNAS + ' columnas.';
+    }
+    if ((crudas.length - iEnc) * ancho > MAX_CELDAS) {
+      throw new Error('La lista es demasiado grande para leerla aquí (más de ' + (MAX_CELDAS / 1000000) + ' millones de celdas). Deja solo las columnas que necesitas.');
     }
     var encabezados = [];
     for (j = 0; j < ancho; j++) encabezados.push(limpiar(crudas[iEnc][j]) || ('Columna ' + (raiz.Excel ? raiz.Excel.columna(j) : j + 1)));
@@ -256,7 +266,7 @@
       for (j = 0; j < ancho; j++) { var x = limpiar(crudas[i][j]); if (x) hay = true; v.push(x); }
       if (hay) filas.push({ n: i + 1, v: v });
     }
-    return { encabezados: encabezados, filas: filas };
+    return { encabezados: encabezados, filas: filas, aviso: aviso };
   }
 
   /* ---------- Qué es cada columna, según su encabezado ---------- */

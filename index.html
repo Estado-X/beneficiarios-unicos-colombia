@@ -80,6 +80,13 @@
         <button class="enlace-fuerte" type="button" id="reiniciar">Empezar de nuevo</button>
         <p class="nota" id="estado-buscar" aria-live="polite"></p>
       </div>
+      <div class="confirmar" id="confirmar" role="alertdialog" aria-labelledby="confirmar-texto" hidden>
+        <p class="confirmar__texto" id="confirmar-texto"></p>
+        <div class="confirmar__accion">
+          <button class="boton boton--linea" type="button" id="confirmar-no">No, seguir revisando</button>
+          <button class="enlace-fuerte" type="button" id="confirmar-si">Sí, borrar mis decisiones</button>
+        </div>
+      </div>
       <div class="avance" id="avance" hidden>
         <label for="barra" id="avance-texto">Comparando…</label>
         <progress id="barra" max="100" value="0"></progress>
@@ -93,9 +100,9 @@
       </div>
 
       <ul class="niveles" id="niveles">
-        <li class="nivel"><span class="nivel__n" id="n-seguros">0</span><span class="nivel__t"><strong>Seguras</strong> Mismo tipo y número de documento. Se unieron solas.</span></li>
-        <li class="nivel"><span class="nivel__n" id="n-probables">0</span><span class="nivel__t"><strong>Probables</strong> Nombre parecido y coincide otro dato. Las revisas tú.</span></li>
-        <li class="nivel"><span class="nivel__n" id="n-dudosas">0</span><span class="nivel__t"><strong>Dudosas</strong> Nombre parecido sin otro dato, o mismo documento con otro nombre. Las revisas tú.</span></li>
+        <li class="nivel"><span class="nivel__n" id="n-seguros">0</span><span class="nivel__t"><strong>Seguras</strong> Mismo tipo y número de documento (o solo el número, si una lista no trae el tipo), sin que choquen el nombre ni la fecha. Se unieron solas.</span></li>
+        <li class="nivel"><span class="nivel__n" id="n-probables">0</span><span class="nivel__t"><strong>Probables</strong> Nombre parecido y coincide otro dato, o mismo documento con un nombre o una fecha que no coinciden. Las revisas tú.</span></li>
+        <li class="nivel"><span class="nivel__n" id="n-dudosas">0</span><span class="nivel__t"><strong>Dudosas</strong> Nombre parecido sin otro dato, o mismo documento con un nombre muy distinto. Las revisas tú.</span></li>
       </ul>
       <div id="avisos-analisis"></div>
 
@@ -143,7 +150,7 @@
         <div class="seccion__cab"><h2 id="t-criterio">Dónde entra tu criterio</h2></div>
         <div class="criterio">
           <p class="limites__uno">Las parejas dudosas las decides tú, una por una.</p>
-          <p>La página une sola lo que tiene el mismo tipo y número de documento. Todo lo demás te lo muestra lado a lado, con la razón por la que lo trae, y espera tu respuesta. Tú conoces el territorio, a las familias y cómo se llenaron esas planillas.</p>
+          <p>La página une sola lo que tiene el mismo documento y nada que choque. Todo lo demás te lo muestra lado a lado, con la razón por la que lo trae, y espera tu respuesta. Tú conoces el territorio, a las familias y cómo se llenaron esas planillas.</p>
           <p>Lo que no decidas queda como personas distintas y marcado «Sin decidir» en el Excel, para que se vea qué faltó revisar.</p>
         </div>
       </section>
@@ -154,7 +161,7 @@
           <li>Las listas se leen y se comparan en este navegador. No se envían a ningún servidor.</li>
           <li>No se guardan: al cerrar o recargar la página, se borran.</li>
           <li>La página no tiene rastreadores, cuentas ni formularios.</li>
-          <li>La Ley 1581 de 2012 protege los datos personales. Quien maneja listas de beneficiarios es responsable de su tratamiento: cuida también el Excel que descargas.</li>
+          <li>La Ley 1581 de 2012 protege los datos personales. Quien maneja listas de beneficiarios debe cumplirla, sea responsable o encargado del tratamiento: cuida también el Excel que descargas. Los datos de niños, niñas y adolescentes tienen protección especial (artículo 7).</li>
         </ul>
       </section>
     </div>

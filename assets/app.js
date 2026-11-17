@@ -20,6 +20,7 @@
     pendientes: [],    // parejas probables y dudosas: { a, b, nivel, p, motivo, igual, decision, orden }
     cola: [],          // orden en que se muestran
     historial: [],     // índices de pendientes ya decididos, para deshacer
+    sinDescargar: false, // hay decisiones que todavía no están en un Excel descargado
     grupos: null,
     actual: -1,
     avisos: [],
@@ -43,16 +44,30 @@
     $('errores').appendChild(p);
   }
 
+  // Los errores propios (new Error con texto en español) se muestran tal cual; los del navegador, no.
+  function mensajeDe(e) {
+    return e && e.constructor === Error && e.message ? e.message : 'No se pudo leer el archivo.';
+  }
+  function leyendo(nombre) {
+    $('avance').hidden = false;
+    $('barra').removeAttribute('value');
+    $('avance-texto').textContent = 'Leyendo «' + nombre + '»…';
+    // Se cede un instante para que el aviso alcance a pintarse antes de abrir el archivo.
+    return new Promise(function (ok) { setTimeout(ok, 30); });
+  }
+
   function leerArchivo(archivo) {
-    return archivo.arrayBuffer().then(function (ab) { return agregarLista(archivo.name, new Uint8Array(ab), false); });
+    return leyendo(archivo.name).then(function () { return archivo.arrayBuffer(); })
+      .then(function (ab) { return agregarLista(archivo.name, new Uint8Array(ab), false); },
+        function () { mostrarError('«' + archivo.name + '»: No se pudo leer el archivo.'); });
   }
 
   function agregarLista(nombre, bytes, ficticia) {
     return Leer.abrir(nombre, bytes).then(function (libro) {
-      var lista = { id: estado.siguienteId++, nombre: nombre, hojas: libro.hojas, hoja: 0, encabezados: [], filas: [], mapa: [], ficticia: ficticia };
+      var lista = { id: estado.siguienteId++, nombre: nombre, hojas: libro.hojas, hoja: 0, encabezados: [], filas: [], mapa: [], aviso: '', ficticia: ficticia };
       return elegirHoja(lista, 0, true).then(function () { estado.listas.push(lista); });
     }).catch(function (e) {
-      mostrarError('«' + nombre + '»: ' + (e && e.message ? e.message : 'no se pudo leer.'));
+      mostrarError('«' + nombre + '»: ' + mensajeDe(e));
     });
   }
 
@@ -61,24 +76,37 @@
     return lista.hojas[i].leer().then(function (crudas) {
       var t = Leer.tabla(crudas);
       if (buscarConDatos && !t.filas.length && i + 1 < lista.hojas.length) return elegirHoja(lista, i + 1, true);
-      if (buscarConDatos && !t.filas.length) throw new Error('no tiene filas con datos.');
+      if (buscarConDatos && !t.filas.length) throw new Error('No tiene filas con datos.');
       lista.hoja = i;
       lista.encabezados = t.encabezados;
       lista.filas = t.filas;
+      lista.aviso = t.aviso || '';
       lista.mapa = Leer.adivinar(t.encabezados);
     });
   }
 
   function recibir(archivos) {
     if (estado.trabajando || !archivos || !archivos.length) return;
-    vaciar($('errores'));
-    var cola = Promise.resolve();
-    Array.prototype.forEach.call(archivos, function (a) { cola = cola.then(function () { return leerArchivo(a); }); });
-    cola.then(function () { invalidar(); pintarListas(); if (estado.listas.length) $('listas').scrollIntoView({ block: 'nearest' }); });
+    var lista = Array.prototype.slice.call(archivos);
+    conPermiso(function () {
+      vaciar($('errores'));
+      estado.trabajando = true;
+      var cola = Promise.resolve();
+      lista.forEach(function (a) { cola = cola.then(function () { return leerArchivo(a); }); });
+      cola.then(function () {
+        estado.trabajando = false;
+        $('avance').hidden = true;
+        invalidar(); pintarListas();
+        if (estado.listas.length) $('listas').scrollIntoView({ block: 'nearest' });
+      });
+    });
   }
 
   function cargarEjemplo() {
     if (estado.trabajando) return;
+    conPermiso(cargarEjemploAhora);
+  }
+  function cargarEjemploAhora() {
     vaciar($('errores'));
     estado.listas = [];
     invalidar();
@@ -94,7 +122,7 @@
     }).then(function () {
       pintarListas();
       $('cargar').scrollIntoView();
-      buscar();
+      buscarAhora();
     }).catch(function () {
       mostrarError('No se pudo abrir el ejemplo desde aquí. Si abriste la página como archivo, arrastra las tres listas de la carpeta «ejemplos».');
     });
@@ -125,8 +153,10 @@
       quitar.type = 'button';
       quitar.setAttribute('aria-label', 'Quitar la lista ' + lista.nombre);
       quitar.addEventListener('click', function () {
-        estado.listas = estado.listas.filter(function (l) { return l !== lista; });
-        invalidar(); pintarListas();
+        conPermiso(function () {
+          estado.listas = estado.listas.filter(function (l) { return l !== lista; });
+          invalidar(); pintarListas();
+        });
       });
       var textos = el('div', 'lista__textos');
       textos.appendChild(titulo); textos.appendChild(dato);
@@ -141,8 +171,11 @@
         lista.hojas.forEach(function (h, i) { var o = el('option', null, h.nombre); o.value = String(i); sh.appendChild(o); });
         sh.value = String(lista.hoja);
         sh.addEventListener('change', function () {
-          elegirHoja(lista, +sh.value, false).then(function () { invalidar(); pintarListas(); var s = $(idH); if (s) s.focus(); })
-            .catch(function (e) { mostrarError('«' + lista.nombre + '»: ' + e.message); });
+          var nueva = +sh.value;
+          conPermiso(function () {
+            elegirHoja(lista, nueva, false).then(function () { invalidar(); pintarListas(); var s = $(idH); if (s) s.focus(); })
+              .catch(function (e) { mostrarError('«' + lista.nombre + '»: ' + mensajeDe(e)); pintarListas(); });
+          }, pintarListas);
         });
         campoH.appendChild(lh); campoH.appendChild(sh);
         art.appendChild(campoH);
@@ -170,14 +203,16 @@
         if (lista.mapa[j]) tr.className = 'columnas__usada';
         sel.addEventListener('change', function () {
           var v = sel.value;
-          if (CAMPOS_UNICOS.indexOf(v) >= 0) {
-            // Estos datos van en una sola columna: si ya había otra, se suelta.
-            lista.mapa = lista.mapa.map(function (c, k) { return (c === v && k !== j) ? '' : c; });
-          }
-          lista.mapa[j] = v;
-          invalidar(); pintarListas();
-          var filas = $('listas').querySelectorAll('article')[estado.listas.indexOf(lista)];
-          if (filas) { var s = filas.querySelectorAll('tbody select')[j]; if (s) s.focus(); }
+          conPermiso(function () {
+            if (CAMPOS_UNICOS.indexOf(v) >= 0) {
+              // Estos datos van en una sola columna: si ya había otra, se suelta.
+              lista.mapa = lista.mapa.map(function (c, k) { return (c === v && k !== j) ? '' : c; });
+            }
+            lista.mapa[j] = v;
+            invalidar(); pintarListas();
+            var filas = $('listas').querySelectorAll('article')[estado.listas.indexOf(lista)];
+            if (filas) { var s = filas.querySelectorAll('tbody select')[j]; if (s) s.focus(); }
+          }, pintarListas);
         });
         tdS.appendChild(sel);
         tr.appendChild(th); tr.appendChild(td); tr.appendChild(tdS);
@@ -187,6 +222,7 @@
       envoltura.appendChild(tabla);
       art.appendChild(envoltura);
 
+      if (lista.aviso) art.appendChild(el('p', 'lista__aviso', lista.aviso));
       if (!sirve(lista)) art.appendChild(el('p', 'aviso aviso--error', 'Marca al menos la columna del nombre o la del número de documento para poder comparar esta lista.'));
       else if (!camposDe(lista).doc) art.appendChild(el('p', 'nota lista__pie', 'Sin número de documento, las parejas de esta lista no pueden ser seguras: te las mostramos para que decidas.'));
       caja.appendChild(art);
@@ -200,11 +236,34 @@
     $('estado-buscar').textContent = hay ? plural(estado.listas.length, 'lista', 'listas') + ' · ' + plural(total, 'fila', 'filas') + ' en total.' : '';
   }
 
+  /* Si ya hay decisiones tomadas, lo que las borraría pide permiso primero, dentro de la página. */
+  var pendiente = null;
+  function conPermiso(accion, alCancelar) {
+    if (!estado.historial.length) { accion(); return; }
+    pendiente = { accion: accion, cancelar: alCancelar || null };
+    var n = estado.historial.length;
+    $('confirmar-texto').textContent = 'Esto borra ' + (n === 1 ? 'la decisión que tomaste' : 'las ' + nf.format(n) + ' decisiones que tomaste') + '. Si las necesitas, descarga primero el Excel.';
+    $('confirmar').hidden = false;
+    $('confirmar').scrollIntoView({ block: 'center' });
+    $('confirmar-no').focus();
+  }
+  function responder(si) {
+    var p = pendiente;
+    pendiente = null;
+    $('confirmar').hidden = true;
+    if (!p) return;
+    if (si) { estado.historial = []; p.accion(); }
+    else if (p.cancelar) p.cancelar();
+  }
+
   /* Cambió algo en las listas: lo que se había comparado ya no vale. */
   function invalidar() {
     estado.registros = estado.norm = estado.grupos = null;
     estado.seguros = []; estado.pendientes = []; estado.cola = []; estado.historial = [];
     estado.actual = -1;
+    estado.sinDescargar = false;
+    $('confirmar').hidden = true;
+    pendiente = null;
     $('revisar').hidden = true;
     $('resultado').hidden = true;
   }
@@ -262,12 +321,17 @@
 
   function buscar() {
     if (estado.trabajando || !estado.listas.length) return;
+    conPermiso(buscarAhora);
+  }
+  function buscarAhora() {
+    if (estado.trabajando || !estado.listas.length) return;
     invalidar();
     var registros = construirRegistros();
     if (!registros.length) { mostrarError('Las listas no tienen filas con datos.'); return; }
     estado.trabajando = true;
     $('buscar').disabled = true;
     $('avance').hidden = false;
+    $('barra').max = 100;
     $('barra').value = 0;
     $('avance-texto').textContent = 'Comparando ' + plural(registros.length, 'fila', 'filas') + '…';
     analizar(registros, function (hechas, total) {
@@ -491,6 +555,7 @@
     p.decision = que;
     p.orden = estado.historial.length + 1;
     estado.historial.push(estado.actual);
+    estado.sinDescargar = true;
     recalcular();
     pintarRevision(true);
   }
@@ -507,6 +572,7 @@
     var i = estado.historial.pop();
     estado.pendientes[i].decision = null;
     estado.pendientes[i].orden = 0;
+    if (!estado.historial.length) estado.sinDescargar = false;
     // La pareja deshecha vuelve a quedar de primera.
     estado.cola.splice(estado.cola.indexOf(i), 1);
     estado.cola.unshift(i);
@@ -639,6 +705,7 @@
       document.body.appendChild(a);
       a.click();
       a.remove();
+      estado.sinDescargar = false;
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
     }).catch(function (e) {
       mostrarError('No se pudo armar el Excel: ' + (e && e.message ? e.message : 'error inesperado.'));
@@ -664,8 +731,19 @@
     $('buscar').addEventListener('click', buscar);
     $('reiniciar').addEventListener('click', function () {
       if (estado.trabajando) return;
-      estado.listas = []; vaciar($('errores')); invalidar(); pintarListas();
-      $('cargar').scrollIntoView();
+      conPermiso(function () {
+        estado.listas = []; vaciar($('errores')); invalidar(); pintarListas();
+        $('cargar').scrollIntoView();
+      });
+    });
+    $('confirmar-si').addEventListener('click', function () { responder(true); });
+    $('confirmar-no').addEventListener('click', function () { responder(false); });
+    $('confirmar').addEventListener('keydown', function (ev) { if (ev.key === 'Escape') responder(false); });
+    // Al cerrar o recargar con decisiones sin descargar, el navegador pregunta antes de perderlas.
+    window.addEventListener('beforeunload', function (ev) {
+      if (!estado.sinDescargar) return;
+      ev.preventDefault();
+      ev.returnValue = '';
     });
     $('b-misma').addEventListener('click', function () { decidir('misma'); });
     $('b-distintas').addEventListener('click', function () { decidir('distinta'); });

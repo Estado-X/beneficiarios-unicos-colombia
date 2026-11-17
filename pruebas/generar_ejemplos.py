@@ -6,7 +6,8 @@ Todo es inventado, con una semilla fija para que siempre salga igual:
 - Los nombres se arman al azar con nombres y apellidos comunes en Colombia.
 - Los documentos son números de 9 dígitos que empiezan por 5: un largo que la cédula colombiana
   no usa (tiene hasta 8 dígitos, o 10), para que no correspondan a nadie.
-- Los celulares empiezan por 399, un prefijo elegido para que no parezcan de ningún operador.
+- Los celulares empiezan por 399, un prefijo hoy sin asignar según la CRC (no es un rango reservado).
+- La primera fila de cada archivo dice que los datos son ficticios; la página se la salta sola.
 Ninguna fila corresponde a una persona real. Necesita openpyxl para escribir el .xlsx.
 """
 import csv
@@ -35,6 +36,7 @@ APELLIDOS = ["Rodríguez", "Gómez", "González", "Martínez", "García", "Lópe
              "Benítez", "Salazar", "Ospina", "Giraldo", "Londoño", "Chaverra", "Lozano", "Asprilla", "Ledesma"]
 MUNICIPIOS = ["Quibdó", "Tumaco", "Buenaventura", "Riohacha", "Soacha", "Istmina", "Maicao", "Guapi"]
 TALLERES = ["Taller 1 · Derechos", "Taller 2 · Huerta", "Taller 3 · Ahorro"]
+TITULO = "DATOS FICTICIOS · ninguna de estas personas existe"
 KITS = ["Kit escolar", "Kit de siembra", "Kit de higiene"]
 
 
@@ -79,7 +81,7 @@ def crear_personas(rnd, cuantas):
                 tels.add(tel)
                 break
         nac = datetime.date(1958, 1, 1) + datetime.timedelta(days=rnd.randrange(0, 365 * 50))
-        menor = nac.year >= 2007
+        menor = nac.year >= 2009   # en 2026, quien nació en 2008 o antes ya tiene cédula
         personas.append({
             "id": k, "nombres": nombres, "apellidos": apellidos, "doc": doc, "tipo": "TI" if menor else "CC",
             "nac": nac, "municipio": rnd.choice(MUNICIPIOS), "tel": tel,
@@ -98,7 +100,7 @@ def main():
     verdad = {}  # "lista|fila" -> persona
 
     # ---------- Lista 1 · inscripción (CSV, comas, UTF-8) ----------
-    filas1 = [["Tipo de documento", "Número de documento", "Nombres", "Apellidos", "Fecha de nacimiento", "Municipio", "Celular"]]
+    filas1 = [[TITULO], ["Tipo de documento", "Número de documento", "Nombres", "Apellidos", "Fecha de nacimiento", "Municipio", "Celular"]]
     orden1 = list(range(0, 105))
     repetidos = [3, 17, 42, 58, 77]           # se inscribieron dos veces
     orden1 += repetidos
@@ -130,7 +132,7 @@ def main():
         verdad[f"inscripcion-ficticia|{len(filas1)}"] = pid
 
     # ---------- Lista 2 · asistencia (Excel) ----------
-    filas2 = [["Nombre completo", "Cédula", "Fecha nacimiento", "Municipio", "Taller"]]
+    filas2 = [[TITULO], ["Nombre completo", "Cédula", "Fecha nacimiento", "Municipio", "Taller"]]
     orden2 = rnd.sample(range(0, 105), 58) + list(range(105, 130)) + [140]
     rnd.shuffle(orden2)
     for pid in orden2:
@@ -151,7 +153,7 @@ def main():
         verdad[f"asistencia-ficticia|{len(filas2)}"] = pid
 
     # ---------- Lista 3 · entregas (CSV de Excel: punto y coma, codificación de Windows) ----------
-    filas3 = [["BENEFICIARIO", "DOCUMENTO", "TELEFONO", "MUNICIPIO", "KIT ENTREGADO"]]
+    filas3 = [[TITULO], ["BENEFICIARIO", "DOCUMENTO", "TELEFONO", "MUNICIPIO", "KIT ENTREGADO"]]
     orden3 = rnd.sample(range(0, 130), 45) + list(range(130, 140)) + [141] + list(range(142, 150))
     rnd.shuffle(orden3)
     usados_mal = 0
@@ -186,9 +188,9 @@ def main():
     ws.title = "Asistencia (ficticia)"
     for fila in filas2:
         ws.append(fila)
-    for celda in ws[1]:
+    for celda in list(ws[1]) + list(ws[2]):
         celda.font = Font(bold=True)
-    for fila in ws.iter_rows(min_row=2, min_col=3, max_col=3):
+    for fila in ws.iter_rows(min_row=3, min_col=3, max_col=3):
         fila[0].number_format = "DD/MM/YYYY"
     for letra, ancho in zip("ABCDE", (42, 16, 18, 18, 24)):
         ws.column_dimensions[letra].width = ancho
@@ -204,7 +206,7 @@ def main():
     with open(RAIZ / "pruebas" / "ejemplo_verdad.json", "w", encoding="utf-8", newline="\n") as f:
         json.dump({"nota": "Datos ficticios. Dice qué persona inventada es cada fila de ejemplos/ (lista|fila).",
                    "filas": len(verdad), "personas_unicas": personas_unicas, "persona_de": verdad}, f, ensure_ascii=False, indent=1)
-    print(f"Filas: {len(filas1) - 1} + {len(filas2) - 1} + {len(filas3) - 1} = {len(verdad)} · personas únicas: {personas_unicas}")
+    print(f"Filas: {len(filas1) - 2} + {len(filas2) - 2} + {len(filas3) - 2} = {len(verdad)} · personas únicas: {personas_unicas}")
 
 
 if __name__ == "__main__":

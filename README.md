@@ -15,8 +15,8 @@ Una herramienta gratis y abierta que junta varias listas de beneficiarios (inscr
 - Carga una o varias listas en Excel (`.xlsx`) o CSV, arrastrándolas o eligiéndolas.
 - Adivina por el encabezado qué es cada columna (nombres, apellidos o nombre completo, tipo y número de documento, fecha de nacimiento, municipio, teléfono) y te deja corregirlo a mano.
 - Empareja las filas en tres niveles:
-  - **Seguras:** mismo tipo y número de documento. Se unen solas, y las puedes ver.
-  - **Probables:** nombre parecido y coincide otro dato (fecha de nacimiento, teléfono, municipio o un documento que difiere en un dígito).
+  - **Seguras:** mismo tipo y número de documento (o solo el número, si una lista no trae el tipo), sin que choquen el nombre ni la fecha de nacimiento. Se unen solas, y las puedes ver.
+  - **Probables:** nombre parecido y coincide otro dato (fecha de nacimiento, teléfono, municipio o un documento que difiere en un dígito), o mismo documento con un nombre o una fecha que no coinciden.
   - **Dudosas:** nombre parecido sin otro dato, o mismo documento con nombres muy distintos (puede ser un error de digitación).
 - Te muestra las probables y las dudosas una por una, con los datos lado a lado, para que digas «Es la misma persona» o «Son personas distintas», con el ratón o con el teclado (`M`, `D`, `S` para decidir después, `Z` para deshacer).
 - Dice cuántas filas había, cuántas personas únicas quedan y cuántas decisiones tomaste, y descarga un Excel con cuatro hojas: personas únicas (una fila por persona, con su ID único y de qué listas viene), todas las filas originales con su ID, las decisiones tomadas y un resumen.
@@ -33,7 +33,7 @@ Trae un botón **Probar con el ejemplo** con tres listas de datos ficticios (`ej
 5. **Arma los grupos**: lo seguro se une solo; lo demás, solo si tú lo dices. Lo que no decidas queda como personas distintas, con la marca «Sin decidir».
 6. **Escribe el Excel** en el navegador (`assets/excel.js`). El texto va siempre como texto: una celda que empiece por `=`, `+`, `-` o `@` no queda como fórmula.
 
-No hay servidor, base de datos, claves ni rastreadores. La página trae una política de seguridad de contenido que solo le permite pedir archivos de su propia carpeta.
+No hay servidor, base de datos, claves ni rastreadores. La página trae una política de seguridad de contenido que solo le permite pedir archivos de su propio sitio.
 
 ### Úsala o adáptala
 
@@ -49,7 +49,8 @@ No hay servidor, base de datos, claves ni rastreadores. La página trae una pol�
 - Dos filas con documentos distintos del mismo tipo se toman como personas distintas, salvo que difieran en un solo dígito o que coincidan el nombre completo y la fecha de nacimiento.
 - La primera fila con datos de cada lista debe traer los nombres de las columnas. No lee `.xls` (el formato antiguo), `.ods` ni Excel con clave: guárdalos como `.xlsx` o CSV.
 - Está probada con 20.000 filas en Chromium. Con listas mucho más grandes depende de la memoria del computador.
-- La Ley 1581 de 2012 protege los datos personales: quien maneja listas de beneficiarios es responsable de su tratamiento, también del Excel que descarga.
+- La Ley 1581 de 2012 protege los datos personales: quien maneja listas de beneficiarios debe cumplirla, sea responsable o encargado del tratamiento, también con el Excel que descarga. Los datos de niños, niñas y adolescentes tienen protección especial (artículo 7).
+- Lee hasta 100 columnas y 200.000 filas por lista, y Excel de hasta 50 MB por dentro.
 
 ### Crédito
 
@@ -67,10 +68,10 @@ A free, open tool that merges several beneficiary lists (registration, attendanc
 
 **Open it here:** https://estado-x.github.io/beneficiarios-unicos-colombia/
 
-- **What it does:** loads Excel (`.xlsx`) or CSV lists, guesses each column from its header (you can fix it by hand), and matches rows at three levels: *sure* (same ID type and number, merged automatically), *probable* (similar name plus another matching field) and *doubtful* (similar name with nothing else, or same ID with very different names). You review probable and doubtful pairs side by side, with mouse or keyboard, and download an Excel file with unique people (one row each, with a unique ID and source lists), every original row with its ID, the decisions made and a summary.
+- **What it does:** loads Excel (`.xlsx`) or CSV lists, guesses each column from its header (you can fix it by hand), and matches rows at three levels: *sure* (same ID type and number with no conflicting name or birth date, merged automatically), *probable* (similar name plus another matching field) and *doubtful* (similar name with nothing else, or same ID with very different names). You review probable and doubtful pairs side by side, with mouse or keyboard, and download an Excel file with unique people (one row each, with a unique ID and source lists), every original row with its ID, the decisions made and a summary.
 - **How it works:** plain JavaScript, no third-party libraries. Names are normalized for Colombian conventions (two surnames, surnames first or last, particles, initials, lost accents and ñ) and compared word by word regardless of order, using exact, sound-alike, edit-distance and initial matches. Blocking (same ID, phone, two name words, or birth date plus one word) avoids comparing every row with every other; the comparison runs in a Web Worker, so 20,000 rows take a few seconds. Text cells starting with `=`, `+`, `-` or `@` are never written as formulas.
 - **Use or adapt it:** use the page above, or download the repo (`main` branch) and serve it locally with `python -m http.server`. Thresholds and level rules live at the top of `assets/emparejar.js`. Tests: `node pruebas/funciones.test.js` and `python pruebas/probar.py` (Playwright).
-- **Limits:** it does not query any official registry or confirm identities, does not decide doubtful cases for you and does not replace field verification. It only compares what is written in your lists. It does not read legacy `.xls` or password-protected files. Personal data is protected by Colombian Law 1581 of 2012; whoever handles beneficiary lists is responsible for them.
+- **Limits:** it does not query any official registry or confirm identities, does not decide doubtful cases for you and does not replace field verification. It only compares what is written in your lists. It does not read legacy `.xls` or password-protected files. Personal data is protected by Colombian Law 1581 of 2012; whoever handles beneficiary lists must comply with it, as controller or processor.
 - **Credit:** inspired by [Splink](https://github.com/moj-analytical-services/splink), by the UK Ministry of Justice (MIT license); written from scratch for the browser, it doesn't reuse its code. The data in `ejemplos/` is fictitious.
 
 Made by Estado X · MIT license.

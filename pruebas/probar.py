@@ -204,6 +204,8 @@ def prueba_teclado(navegador, base):
     primera = pareja_actual(pag)
     pag.keyboard.press("m")
     revisar("M decide y pasa a la siguiente", cuenta().startswith("pareja 2 de") and numero(pag, "#r-decisiones") == 1, cuenta())
+    foco = pag.evaluate("(() => { const e = document.activeElement; const s = getComputedStyle(e); return [e.id, s.outlineStyle, parseFloat(s.outlineWidth)]; })()")
+    revisar("tras decidir, el foco se ve en la pareja", foco[0] == "pareja" and foco[1] != "none" and foco[2] >= 2, str(foco))
     pag.keyboard.press("d")
     revisar("D decide y pasa a la siguiente", cuenta().startswith("pareja 3 de") and numero(pag, "#r-decisiones") == 2)
     tercera = pareja_actual(pag)
@@ -222,6 +224,23 @@ def prueba_teclado(navegador, base):
     pag.keyboard.press("m")
     revisar("fuera de la revisión las letras no deciden", numero(pag, "#r-decisiones") == antes)
     revisar("queda el aviso de parejas sin decidir", pag.is_visible("#r-pendientes"))
+    # Lo que borraría las decisiones pide permiso dentro de la página.
+    pag.click("#reiniciar")
+    revisar("«Empezar de nuevo» pregunta antes de borrar decisiones", pag.is_visible("#confirmar") and "decisi" in pag.inner_text("#confirmar-texto"))
+    pag.click("#confirmar-no")
+    revisar("al decir que no, todo sigue igual", pag.is_hidden("#confirmar") and numero(pag, "#r-decisiones") == antes and pag.locator("#listas article").count() == 3)
+    pag.select_option("#listas tbody select >> nth=0", "")
+    revisar("cambiar una columna también pregunta", pag.is_visible("#confirmar"))
+    pag.keyboard.press("Escape")
+    revisar("al cancelar, la columna vuelve a como estaba", pag.is_hidden("#confirmar") and pag.input_value("#listas tbody select >> nth=0") == "tipo" and pag.is_visible("#revisar"))
+    avisa = pag.evaluate("(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; })()")
+    revisar("al cerrar con decisiones sin descargar, el navegador pregunta", avisa)
+    descargar(pag)
+    avisa = pag.evaluate("(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; })()")
+    revisar("después de descargar ya no pregunta al cerrar", not avisa)
+    pag.click("#reiniciar")
+    pag.click("#confirmar-si")
+    revisar("al decir que sí, se empieza de nuevo", pag.locator("#listas article").count() == 0 and pag.is_hidden("#revisar"))
     revisar("sin errores de consola", not pag.errores, str(pag.errores))
     pag.context.close()
 
@@ -282,13 +301,81 @@ def prueba_archivos_malos(navegador, base):
     pag.locator("#errores .aviso--error").nth(2).wait_for()
     texto = pag.inner_text("#errores")
     revisar("explica el .xls antiguo", "formato antiguo" in texto)
-    revisar("explica el Excel dañado y la lista vacía", "roto.xlsx" in texto and "vacio.csv" in texto)
+    revisar("explica el Excel dañado y la lista vacía", "roto.xlsx" in texto and "vacio.csv" in texto and "Failed" not in texto and "undefined" not in texto, texto)
     revisar("no deja buscar sin listas", pag.is_hidden("#paso-buscar"))
     pag.set_input_files("#archivos", {"name": "sin-nombre.csv", "mimeType": "text/csv", "buffer": a_csv([["Kit", "Valor"], ["A", "1"], ["B", "2"]])})
     pag.wait_for_selector("#listas article")
     revisar("si no hay nombre ni documento, pide marcar la columna", pag.is_disabled("#buscar") and "Marca al menos" in pag.inner_text("#listas"))
     pag.select_option("#listas tbody select >> nth=0", "completo")
     revisar("al corregir a mano se puede buscar", pag.is_enabled("#buscar"))
+    revisar("sin errores de consola", not pag.errores, str(pag.errores))
+    pag.context.close()
+
+
+def xlsx_de_prueba(hoja_xml, declarar=None):
+    """Un .xlsx mínimo con la hoja dada. Con `declarar`, el .zip miente sobre el tamaño de la hoja."""
+    partes = {
+        "[Content_Types].xml": '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/></Types>',
+        "_rels/.rels": '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+        "xl/workbook.xml": '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Hoja1" sheetId="1" r:id="rId1"/></sheets></workbook>',
+        "xl/_rels/workbook.xml.rels": '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+        "xl/worksheets/sheet1.xml": hoja_xml,
+    }
+    s = io.BytesIO()
+    with zipfile.ZipFile(s, "w", zipfile.ZIP_DEFLATED) as z:
+        for nombre, datos in partes.items():
+            z.writestr(nombre, datos)
+    b = bytearray(s.getvalue())
+    if declarar is not None:
+        real = len(hoja_xml.encode("utf-8") if isinstance(hoja_xml, str) else hoja_xml).to_bytes(4, "little")
+        falso = declarar.to_bytes(4, "little")
+        i = b.find(b"PK\x03\x04" , b.find(b"xl/worksheets/sheet1.xml") - 40)
+        assert b[i + 22:i + 26] == real
+        b[i + 22:i + 26] = falso
+        c = b.find(b"PK\x01\x02")
+        while c >= 0:
+            if b[c + 46:c + 46 + 24] == b"xl/worksheets/sheet1.xml":
+                assert b[c + 24:c + 28] == real
+                b[c + 24:c + 28] = falso
+            c = b.find(b"PK\x01\x02", c + 4)
+    return bytes(b)
+
+
+def prueba_archivos_peligrosos(navegador, base):
+    print("Archivos que quieren tumbar la página")
+    cab = '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+    fin = "</sheetData></worksheet>"
+    fila = lambda n, celdas: f'<row r="{n}">' + "".join(f'<c r="{c}{n}" t="inlineStr"><is><t>{v}</t></is></c>' for c, v in celdas) + "</row>"
+    # 1. Un Excel pequeño que por dentro pesa 300 MB y declara 1.000 bytes.
+    bomba = (cab + fila(1, [("A", "Nombre"), ("B", "Documento")]) + " " * (300 * 1024 * 1024) + fin).encode("utf-8")
+    archivo = xlsx_de_prueba(bomba, declarar=1000)
+    print(f"    Excel inflado: {len(archivo) / 1e6:.1f} MB en disco, 300 MB por dentro")
+    pag = pagina_nueva(navegador, base)
+    t0 = time.time()
+    pag.set_input_files("#archivos", {"name": "inflado.xlsx", "mimeType": "application/octet-stream", "buffer": archivo})
+    pag.locator("#errores .aviso--error").first.wait_for(timeout=60000)
+    texto = pag.inner_text("#errores")
+    revisar("un Excel que se infla se rechaza con un mensaje claro", "demasiado grande" in texto and "Failed" not in texto, texto)
+    revisar("y se rechaza rápido", time.time() - t0 < 15, f"{time.time() - t0:.1f} s")
+    revisar("la página sigue viva después", pag.locator("#listas article").count() == 0 and pag.is_hidden("#avance"))
+    # 2. Una hoja «ancha»: 199.000 filas con una celda en la columna 499.
+    ancha = cab + fila(1, [("A", "Nombre"), ("B", "Documento")]) + "".join(fila(n, [("A", f"Persona Ficticia {n}"), ("SE", "x")]) for n in range(2, 199001)) + fin
+    pag.evaluate("""() => { window.__max = 0; let t = performance.now();
+        window.__reloj = setInterval(() => { const n = performance.now(); window.__max = Math.max(window.__max, n - t); t = n; }, 20); }""")
+    t0 = time.time()
+    pag.set_input_files("#archivos", {"name": "ancha.xlsx", "mimeType": "application/octet-stream", "buffer": xlsx_de_prueba(ancha)})
+    pag.locator("#listas article, #errores .aviso--error").first.wait_for(timeout=120000)
+    segundos = time.time() - t0
+    pausa = pag.evaluate("() => { clearInterval(window.__reloj); return window.__max; }")
+    print(f"    hoja ancha: {segundos:.1f} s · pausa más larga {pausa:.0f} ms")
+    hay = pag.locator("#listas article").count() == 1
+    revisar("la hoja ancha se lee solo hasta la columna 100, con aviso", hay and "primeras 100 columnas" in pag.inner_text("#listas") and "2 columnas" in pag.inner_text("#listas"), pag.inner_text("#errores"))
+    revisar("leer la hoja ancha no congela la página (pausas de menos de 4 s)", pausa < 4000, f"{pausa:.0f} ms")
+    # 3. Demasiadas celdas: se rechaza antes de armar la tabla.
+    muchas = cab + fila(1, [(c, "x") for c in ("A", "B", "CV")]) + "".join(fila(n, [("A", "a"), ("CV", "z")]) for n in range(2, 60001)) + fin
+    pag.set_input_files("#archivos", {"name": "muchas.xlsx", "mimeType": "application/octet-stream", "buffer": xlsx_de_prueba(muchas)})
+    pag.locator("#errores .aviso--error").first.wait_for(timeout=60000)
+    revisar("más de 5 millones de celdas se rechaza con mensaje", "millones de celdas" in pag.inner_text("#errores"), pag.inner_text("#errores"))
     revisar("sin errores de consola", not pag.errores, str(pag.errores))
     pag.context.close()
 
@@ -371,6 +458,7 @@ def main():
         prueba_celular(navegador, base)
         prueba_formulas_y_html(navegador, base)
         prueba_archivos_malos(navegador, base)
+        prueba_archivos_peligrosos(navegador, base)
         grande = prueba_rendimiento(navegador, base)
         navegador.close()
     srv.shutdown()

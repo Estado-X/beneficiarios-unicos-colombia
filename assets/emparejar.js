@@ -1,5 +1,5 @@
 /* Emparejamiento de filas que pueden ser la misma persona, en tres niveles:
-   seguro (mismo tipo y número de documento), probable (nombre parecido y coincide otro dato)
+   seguro (mismo tipo y número de documento, sin que choquen el nombre ni la fecha), probable (nombre parecido y coincide otro dato)
    y dudoso (nombre parecido sin otro dato, o mismo documento con nombres muy distintos).
    Para no comparar todos contra todos, cada fila solo se compara con las que comparten un «bloque»:
    el documento, el teléfono, dos palabras del nombre, o la fecha de nacimiento y una palabra.
@@ -54,7 +54,7 @@
      o { nivel, p, motivo, igual: { doc, fecha, mun, tel } }. */
   function comparar(a, b) {
     var hayNombres = a.pal.length > 0 && b.pal.length > 0;
-    var s = hayNombres ? N.parecido(a.pal, b.pal) : { p: 0, completas: 0 };
+    var s = hayNombres ? N.parecido(a.pal, b.pal) : { p: 0, completas: 0, sobranA: 0, sobranB: 0 };
     var p = s.p;
     var hayDocs = !!(a.doc && b.doc);
     var docIgual = hayDocs && a.doc === b.doc;
@@ -69,8 +69,13 @@
 
     if (docIgual) {
       if (tipoCompatible) {
-        if (!hayNombres) return r('seguro', 'Mismo número de documento.');
-        if (p >= NOMBRES_DISTINTOS) return r('seguro', 'Mismo tipo y número de documento.');
+        var mismo = a.tipo && b.tipo ? 'Mismo tipo y número de documento.'
+          : (a.tipo || b.tipo ? 'Mismo número de documento (una lista no trae el tipo).' : 'Mismo número de documento (las listas no traen el tipo).');
+        // Con el mismo documento solo se une sola si nada choca: ni sobran palabras del nombre
+        // en los dos lados (otro nombre con los mismos apellidos) ni la fecha de nacimiento es otra.
+        var choca = fechaDistinta || (hayNombres && s.sobranA > 0 && s.sobranB > 0);
+        if (!hayNombres) return fechaDistinta ? r('probable', 'Mismo documento, pero el nombre o la fecha no coinciden.') : r('seguro', mismo);
+        if (p >= NOMBRES_DISTINTOS) return choca ? r('probable', 'Mismo documento, pero el nombre o la fecha no coinciden.') : r('seguro', mismo);
         return r('dudoso', 'Mismo número de documento, pero los nombres son muy distintos: puede ser un error de digitación.');
       }
       if (p >= PARECIDO) return r('probable', 'Mismo número de documento con tipo distinto (' + a.tipo + ' y ' + b.tipo + ') y nombre parecido.');
